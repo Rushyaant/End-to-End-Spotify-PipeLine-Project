@@ -1,0 +1,68 @@
+List @spotify_stage/songs;
+ 
+CREATE OR REPLACE TABLE tbl_album (
+    album_id STRING,
+    name STRING,
+    release_date DATE,
+    total_tracks INT,
+    url STRING
+);
+
+CREATE OR REPLACE TABLE tbl_artists (
+    artist_id STRING,
+    name STRING,
+    url STRING
+);
+
+CREATE OR REPLACE TABLE tbl_songs (
+    song_id STRING,
+    song_name STRING,
+    duration_ms INT,
+    url STRING,
+    popularity INT,
+    song_added DATE,
+    album_id STRING
+);
+
+COPY INTO tbl_songs (song_id, song_name, duration_ms, url, popularity, song_added, album_id)
+FROM @spotify_stage/songs_data/songs_transformed_2024-05-25/run-1716606754643-part-r-00014
+FILE_FORMAT = (TYPE = CSV, FIELD_OPTIONALLY_ENCLOSED_BY='"', SKIP_HEADER=1)
+ON_ERROR = 'CONTINUE';
+
+
+
+COPY INTO tbl_artists
+FROM @spotify_stage/artist_data/artist_transformed_2024-05-25/run-1716606718389-part-r-00001;
+
+COPY INTO tbl_album
+FROM @spotify_stage/album_data/album_transformed_2024-05-25/run-1716606433784-part-r-00015;
+
+-- Ensure the schema is created
+CREATE OR REPLACE SCHEMA pipe;
+
+-- Create Snowpipe for tbl_songs
+CREATE OR REPLACE PIPE tbl_songs_pipe
+AUTO_INGEST = TRUE
+AS
+COPY INTO spotify_db.public.tbl_songs
+FROM @spotify_stage/songs_data;
+
+-- Create Snowpipe for tbl_artists
+CREATE OR REPLACE PIPE tbl_artists_pipe
+AUTO_INGEST = TRUE
+AS
+COPY INTO spotify_db.public.tbl_artists
+FROM @spotify_db.public.spotify_stage/artist_data;
+
+-- Create Snowpipe for tbl_album
+CREATE OR REPLACE PIPE tbl_album_pipe
+AUTO_INGEST = TRUE
+AS
+COPY INTO spotify_db.public.tbl_album
+FROM @spotify_db.public.spotify_stage/album_data;
+
+DESC pipe pipe.tbl_songs_pipe;
+DESC pipe pipe.tbl_artists_pipe;
+DESC pipe pipe.tbl_album_pipe;
+
+SELECT COUNT(*) FROM tbl_album;
